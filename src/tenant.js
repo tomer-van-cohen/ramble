@@ -739,10 +739,13 @@ Each one is a single word.
     const hit = this.memberCache?.get(jid);
     if (hit && Date.now() - hit.at < 7 * 864e5) return hit.names;
     let ids = [];
+    // Three seconds at most, on a timer that holds the loop open: an unref'd one let the process
+    // end before it fired when nothing else was pending, and the names were never answered.
+    let timer;
     try {
-      const meta = await Promise.race([this.sock.groupMetadata(jid), new Promise((r) => setTimeout(r, 3000).unref?.())]);
+      const meta = await Promise.race([this.sock.groupMetadata(jid), new Promise((r) => { timer = setTimeout(r, 3000); })]);
       ids = (meta?.participants || []).flatMap((p) => [p.id, p.phoneNumber, p.lid]).filter(Boolean).map((j) => jidNormalizedUser(j));
-    } catch { /* unavailable: no member names this time */ }
+    } catch { /* unavailable: no member names this time */ } finally { clearTimeout(timer); }
     const names = [...new Set(ids.map((id) => this.contactNames.get(id) || this.contactNames.get(this.altIds.get(id))).filter(Boolean))].slice(0, 40);
     (this.memberCache ||= new Map()).set(jid, { at: Date.now(), names });
     return names;
