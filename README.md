@@ -102,7 +102,10 @@ Run on its own, this repository transcribes each recording once with the model y
 and delivers the text as it comes back (see *The brain* below).
 
 `/healthz` answers `{ok:true}`; `/admin` (Basic auth) lists every account's state,
-minutes today and last error.
+minutes today and last error. `/admin/stats` shows how the accounts are set up (who is
+transcribed, where the text goes, who changed what) and what they transcribe (recording
+lengths in 10-second steps, hours of the day, outcomes, speed), from a per-recording
+ledger of numbers under `DATA_DIR/usage/`.
 
 ## Privacy & security
 

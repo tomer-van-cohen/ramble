@@ -23,6 +23,8 @@ import { GLOBAL_DAILY_MINUTES, secondsToday } from './budget.js';
 import * as research from './research.js';
 import * as experiments from './experiments.js';
 import { features, setFeature, FEATURES, settings, setSetting, SETTINGS } from './features.js';
+import * as usage from './usage.js';
+import { settingsStats, statsPage, STATS_CSS } from './stats.js';
 import { dataDirIsMount, dataPath } from './paths.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { LOGO_SVG, LOGO_DATA_URI } from './logo.js';
@@ -1345,6 +1347,20 @@ setTimeout(ask,2000);` });
   const SEEN_FILE = dataPath('feedback-seen.json');
   const feedbackSeen = () => { try { return Number(JSON.parse(readFileSync(SEEN_FILE, 'utf8')).at) || 0; } catch { return 0; } };
   app.get('/admin.json', adminAuth, (_req, res) => res.json(overview()));
+
+  // Usage (stats.js): how the accounts are set up and what they transcribe, as numbers. The
+  // settings come from the live accounts, the recordings from the usage ledger (usage.js).
+  const STATS_DAYS = [1, 7, 30, 90];
+  const statsDays = (req) => (STATS_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : 7);
+  const statsData = (req) => {
+    const days = statsDays(req);
+    return { days, tz: usage.STATS_TZ, s: settingsStats(registry.list().map((t) => t.status({ history: true }))), u: usage.summarize(usage.readRecords({ days })) };
+  };
+  app.get('/admin/stats.json', adminAuth, (req, res) => res.json(statsData(req)));
+  app.get('/admin/stats', adminAuth, (req, res) => {
+    const data = statsData(req);
+    res.type('html').send(page(res, `${PRODUCT_NAME} · usage`, `${nonceStyle(res.locals.nonce, ADMIN_CSS + STATS_CSS)}<div class="wrap adm">${statsPage(data)}</div>`, { wide: true, nav: '<a class="navlink" href="/admin">Admin</a> <a class="navlink" href="/admin/stats.json">JSON</a>' }));
+  });
   // The transcription experiment (experiments.js): per arm and per segment, counts and rates only.
   const AB = brain.info().experiment || { shares: { B: 0, C: 0 }, maxSeconds: 0 };
   const abDays = (req) => Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
@@ -1616,7 +1632,7 @@ setTimeout(ask,2000);` });
       sort: ACCOUNT_SORTS.some(([k]) => k === req.query.sort) ? req.query.sort : 'recent',
       f: ACCOUNT_FILTERS.some(([k]) => k === req.query.f) ? req.query.f : 'all',
       q: String(req.query.q || '').slice(0, 80), page: Math.max(1, parseInt(req.query.page, 10) || 1),
-    }), { wide: true, nav: '<a class="navlink" href="/admin.json">JSON</a>', poll: ADMIN_JS }));
+    }), { wide: true, nav: '<a class="navlink" href="/admin/stats">Usage</a> <a class="navlink" href="/admin.json">JSON</a>', poll: ADMIN_JS }));
   });
 
   // One account, in full: everything on its card and the support tools.

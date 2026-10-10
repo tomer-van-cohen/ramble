@@ -25,6 +25,7 @@ import { brain } from './brain/index.js';
 import { measureSeconds, prepareAudio } from './audio.js';
 import * as budget from './budget.js';
 import * as experiments from './experiments.js';
+import * as usage from './usage.js';
 import { experimentOn } from './experiments.js';
 import { createGlossary } from './glossary.js';
 import * as research from './research.js';
@@ -932,6 +933,7 @@ Each one is a single word.
     if (n.seconds > 0 && n.seconds < TRANSCRIBE_MIN_SECONDS) { console.log(`${this.tag} ⏭️ skipped a ${n.seconds}s recording`); return; }
     if (MAX_TRANSCRIBE_SECONDS > 0 && n.seconds > MAX_TRANSCRIBE_SECONDS) {
       console.log(`${this.tag} ⏭️ skipped a ${n.seconds}s recording (over the ${MAX_TRANSCRIBE_SECONDS}s limit)`);
+      this.noteUsage(n, isVideo, 'skipped', { reason: 'over the length limit' });
       if (this.target) this.sendPaced(this.target.jid, { text: `⏭️ A ${Math.round(n.seconds / 60)}-minute recording was skipped. The limit per recording is ${Math.round(MAX_TRANSCRIBE_SECONDS / 60)} minutes.` }).catch(() => {});
       return;
     }
@@ -952,6 +954,7 @@ Each one is a single word.
     const sec = n.seconds || 30;
     if (!budget.reserve(sec)) {
       console.warn(`${this.tag} ⏸️ server daily audio budget reached — skipped`);
+      this.noteUsage(n, isVideo, 'cap', { reason: 'server budget' });
       this.notifyOncePerDay('globalCap', `⏸️ ${PRODUCT_NAME} reached its daily limit for today. Transcription resumes tomorrow.`);
       return;
     }
@@ -962,9 +965,10 @@ Each one is a single word.
         this.sendPaced(this.target.jid, { text: `⏸️ That's a lot of talking. You hit today's limit (${this.dailyCapMinutes()} minutes of audio) — back tomorrow.${INVITE_BONUS_MINUTES > 0 && this.bonusMinutes < INVITE_BONUS_MAX ? `\nWant more? Every friend who joins through your invite link adds ${INVITE_BONUS_MINUTES} minutes a day.` : ''}` }).catch(() => {});
       }
       console.log(`${this.tag} ⏸️ over daily cap, skipped`);
+      this.noteUsage(n, isVideo, 'cap', { reason: 'daily cap' });
       return;
     }
-    if (this.slots.waiting >= MAX_QUEUE) { console.log(`${this.tag} ⏸️ queue full, skipped`); return; }
+    if (this.slots.waiting >= MAX_QUEUE) { console.log(`${this.tag} ⏸️ queue full, skipped`); this.noteUsage(n, isVideo, 'skipped', { reason: 'queue full' }); return; }
 
     // One slot per account and one process-wide; the slot is held until the work
     // has actually finished or been cancelled. Every job is tracked so stop() can
@@ -1178,6 +1182,19 @@ Each one is a single word.
     }
   }
 
+  /**
+   * One line in the usage ledger (usage.js) per recording that reached this account: how long,
+   * whose, what became of it, where its text went and how long it took. Numbers only.
+   */
+  noteUsage(n, isVideo, outcome, { reason = null, inControl = false } = {}) {
+    const t = n.t || {};
+    usage.record({
+      acct: this.id, sec: n.seconds || 0, video: !!isVideo, own: !!(n.fromMe && !n.forwarded), outcome,
+      ...(reason ? { reason: String(reason).split('(')[0].trim().slice(0, 40) } : {}),
+      ...(outcome === 'delivered' ? { where: inControl ? 'control' : (n.route ?? this.route(n)) === 'me' ? 'me' : 'chat', total: t.arrived && t.posted ? Math.round((t.posted - t.arrived) / 100) / 10 : null } : {}),
+    });
+  }
+
   logTiming(n, isVideo, retry) {
     const t = n.t, s = (a, b) => (t[a] && t[b] ? ((t[b] - t[a]) / 1000).toFixed(1) : '–');
     const start = t.claimed || t.arrived;
@@ -1221,6 +1238,7 @@ Each one is a single word.
         console.warn(`${this.tag} 🚫 dropped likely hallucination (${out.dropped}) on a ${n.seconds}s ${isVideo ? 'video' : 'voice note'}`);
         if (inControl) this.sendPaced(n.chatId, { text: "🤷 Couldn't make out any speech in that recording." }, { quoted: m }).catch(() => {});
         this.recordExperiment(n, out, { isVideo, gate: out.dropped, posted: false });
+        this.noteUsage(n, isVideo, 'dropped', { reason: out.dropped });
         return;
       }
       const content = out.text, summary = out.summary || null, rewritten = out.fix?.text || null;
@@ -1240,6 +1258,7 @@ Each one is a single word.
       else posted = await this.deliver(n, chatName, body, isVideo, m);
       if (n.t) { n.t.posted = Date.now(); this.logTiming(n, isVideo, out.retry); }
       this.recordExperiment(n, out, { isVideo, gate: 'ok', posted: !!(posted || inControl), rewrite: out.fix?.reason || null, raw: out.raw, fixed: content });
+      this.noteUsage(n, isVideo, 'delivered', { inControl });
       // What runs after the text is out, so nobody waited for it: the other pipelines on an
       // account that keeps audio, or an admin's A/B list. Their texts are kept beside the
       // delivered one; the owner's own group gets the comparison when it is one that should.
@@ -1254,6 +1273,7 @@ Each one is a single word.
       this.stats.failed++; this.lastError = { at: Date.now(), message: firstLine(e) };
       console.warn(`${this.tag} ⚠️ transcription failed: ${firstLine(e)}`);
       keep.error = firstLine(e);
+      this.noteUsage(n, isVideo, 'failed', { reason: firstLine(e).split(':')[0] });
     } finally {
       cleanup();
       // Opted in: the recording is kept with what the models made of it, so a
