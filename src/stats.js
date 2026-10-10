@@ -89,7 +89,7 @@ export const STATS_CSS = `
 .cols{display:block;width:100%;height:160px;border-bottom:1px solid var(--line)}
 .cols rect{fill:var(--green)}.cols rect.alt{fill:#2a78d6}.cols rect.bad{fill:var(--danger)}
 .xl{display:flex;margin-top:4px}.xl span{flex:1 1 0;min-width:0;text-align:center;font-size:11px;color:var(--mute);font-family:var(--mono);overflow:hidden;white-space:nowrap}
-.hb{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.6fr) 76px;align-items:center;gap:10px;font-size:14px;padding:3px 0}
+.hb{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.6fr) 100px;align-items:center;gap:10px;font-size:14px;padding:3px 0}
 .hb .tr{display:block;width:100%;height:10px}.hb .tr rect{fill:var(--green)}.hb .tr rect.bg{fill:var(--chat)}
 .hb .tr rect.alt{fill:#2a78d6}.hb .tr rect.dim{fill:#8c877c}.hb .tr rect.bad{fill:var(--danger)}
 .hb .n{font-family:var(--mono);font-size:13px;text-align:right;white-space:nowrap}.hb .l{line-height:1.25}
