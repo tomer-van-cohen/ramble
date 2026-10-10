@@ -39,6 +39,21 @@ if [ -d brain/.git ]; then
     echo "❌ the brain has commits that are not pushed — push them first (FORCE=1 to override)"; exit 1
   fi
 fi
+# What goes out is exactly a commit of the PUBLIC repository: HEAD must be on origin/main of
+# github.com/tomer-van-cohen/ramble, nothing else — so /version on the server names a commit
+# anyone can read. build-info.json carries that commit and the brain's into the image.
+PUBLIC_REPO=${PUBLIC_REPO:-https://github.com/tomer-van-cohen/ramble}
+origin_url=$(git remote get-url origin 2>/dev/null | sed 's/\.git$//')
+if [ "$origin_url" != "$PUBLIC_REPO" ]; then
+  echo "❌ origin is $origin_url, not the public repository $PUBLIC_REPO — not deploying"; exit 1
+fi
+git fetch -q origin
+if ! git merge-base --is-ancestor HEAD origin/main; then
+  echo "❌ HEAD $(git rev-parse --short HEAD) is not on origin/main of the public repository — push it first"; exit 1
+fi
+brain_sha=$(git -C brain rev-parse HEAD 2>/dev/null || echo unknown)
+printf '{ "shell": "%s", "brain": "%s", "repo": "%s", "builtAt": "%s" }\n' "$(git rev-parse HEAD)" "$brain_sha" "$PUBLIC_REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build-info.json
+echo "🏷️  build-info: shell $(git rev-parse --short HEAD) · brain ${brain_sha:0:7}"
 # Both suites, before anything is uploaded (SKIP_TESTS=1 skips them).
 if [ "${SKIP_TESTS:-0}" != 1 ]; then
   echo "🧪 shell tests…"; npm test --silent >/dev/null 2>&1 || { echo "❌ the shell's tests fail — not deploying"; exit 1; }

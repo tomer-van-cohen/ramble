@@ -35,6 +35,14 @@ import { SITE_URL } from './settings.js';
 import { startSession, hasSession, issueEntry, useEntry, openDoor, doorState, DOOR_RE } from './door.js';
 
 const REPO_URL = process.env.REPO_URL || 'https://github.com/tomer-van-cohen/ramble';
+// build-info.json is written by scripts/deploy.sh (gitignored, uploaded with the tree); a local
+// run or a build without it says so, it never guesses.
+function buildInfo() {
+  try {
+    const j = JSON.parse(readFileSync(new URL('../build-info.json', import.meta.url), 'utf8'));
+    return { shell: String(j.shell || '').slice(0, 40) || null, brain: String(j.brain || '').slice(0, 40) || null, repo: String(j.repo || REPO_URL), builtAt: String(j.builtAt || '') || null };
+  } catch { return { shell: null, brain: null, repo: REPO_URL, builtAt: null }; }
+}
 const TAGLINE = 'Ramble, baby. Talk into WhatsApp however it comes out; every voice note shows up as clean text right under it.';
 // One home: requests arriving on a retired domain are sent to the current one, path and all.
 const CANONICAL_HOST = (process.env.CANONICAL_HOST || '').toLowerCase();
@@ -1624,5 +1632,9 @@ setTimeout(ask,2000);` });
 
   // Liveness only. Counts and details are behind the admin password.
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
+  // Which code this is: the public repository's commit this image was built from, and the
+  // brain's, as scripts/deploy.sh wrote them into build-info.json before uploading. Anyone can
+  // put the shell commit next to github.com/tomer-van-cohen/ramble. Nothing else is in it.
+  app.get('/version', (_req, res) => res.json(buildInfo()));
   return app;
 }

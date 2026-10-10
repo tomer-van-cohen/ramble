@@ -11,3 +11,6 @@ runtime/
 
 # Operator notes and agent skills live only in the operator's checkout.
 .claude/
+
+# Written by scripts/deploy.sh right before an upload; served at /version. Generated, never committed.
+build-info.json

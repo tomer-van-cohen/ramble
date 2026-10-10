@@ -92,3 +92,11 @@ test('the list is 50 rows a page, searched and filtered on the server; an accoun
   assert.equal((await fetch(`${base}/admin/a/nope`, { headers: { authorization: 'Basic ' + Buffer.from('x:test-admin-pw').toString('base64') } })).status, 404);
   for (const t of many) await registry.remove(t.id);
 });
+
+test('/version names the public commit this image was built from, or says it does not know', async () => {
+  const r = await (await fetch(`${base}/version`)).json();
+  assert.deepEqual(Object.keys(r).sort(), ['brain', 'builtAt', 'repo', 'shell']);
+  assert.match(r.repo, /^https:\/\/github\.com\//);
+  // No build-info.json in a test tree: nothing is guessed.
+  assert.equal(r.shell, null); assert.equal(r.brain, null);
+});
