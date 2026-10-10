@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'readable-claims-'));
-process.env.CLAIM_YIELD_MS = '40';
+process.env.CLAIM_YIELD_MS = '300'; // wide apart from "no wait", so a loaded CI runner cannot blur the two
 process.env.CLAIM_WAIT_MS = '400';
 const { Tenant } = await import('../src/tenant.js');
 const claims = await import('../src/claims.js');
@@ -50,18 +50,18 @@ test('a sender without an account here: the recipient transcribes right away, wi
   const t0 = Date.now();
   await ben.onMessage(note(id, false, 'stranger@s.whatsapp.net'), ben.sock);
   assert.deepEqual(ben.worked, [id]);
-  assert.ok(Date.now() - t0 < 30, `waited ${Date.now() - t0} ms`);
+  assert.ok(Date.now() - t0 < 150, `waited ${Date.now() - t0} ms`);
 });
 
 test('a sender with an account here gets the head start; a disconnected one does not', async () => {
   const ben = account('ben'); account('alex');
   let id = `M${++seq}`, t0 = Date.now();
   await ben.onMessage(note(id, false, 'alex@s.whatsapp.net'), ben.sock);
-  assert.ok(Date.now() - t0 >= 35, 'waited for alex');
+  assert.ok(Date.now() - t0 >= 250, 'waited for alex');
   claims.unlink('alex');
   id = `M${++seq}`; t0 = Date.now();
   await ben.onMessage(note(id, false, 'alex@s.whatsapp.net'), ben.sock);
-  assert.ok(Date.now() - t0 < 30, 'alex is gone: no wait');
+  assert.ok(Date.now() - t0 < 150, 'alex is gone: no wait');
 });
 
 test('a group with several accounts and an outside sender: exactly one of them posts', async () => {
