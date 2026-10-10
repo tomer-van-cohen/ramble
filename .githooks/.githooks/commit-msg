@@ -1,9 +1,0 @@
-#!/bin/sh
-# The same check as pre-commit, for the commit message itself.
-terms="$(git rev-parse --show-toplevel)/.private-terms"
-[ -f "$terms" ] || exit 0
-pat="$(grep -vE '^[[:space:]]*(#|$)' "$terms")"
-[ -n "$pat" ] || exit 0
-if grep -vE '^#' "$1" | grep -iFq -e "$pat"; then
-  echo "✋ the commit message contains a term from .private-terms" >&2; exit 1
-fi
