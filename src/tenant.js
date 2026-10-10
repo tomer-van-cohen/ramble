@@ -1041,9 +1041,10 @@ Each one is a single word.
       gate, retry: run.retry || null, rewrite, fallback: run.arm?.includes('→A') ? run.armReason : null, posted,
       stt: sec('measured', 'transcribed'), fix: sec('transcribed', 'corrected'), total: sec('arrived', 'posted'),
       usd: bill()?.usd != null ? Math.round(bill().usd * 1e5) / 1e5 : null, conf: run.conf || null,
+      tok: bill()?.tokens?.calls ? { ...bill().tokens } : null, // chat tokens this recording cost: in, cached, out, reasoning (inside out), calls
     };
     experiments.record(rec);
-    console.log(`${this.tag} 🧪 arm=${rec.arm}${rec.reason ? `(${rec.reason})` : ''} sec=${rec.sec} ${rec.video ? 'video' : 'voice'}${rec.own ? ' own' : ''} lang=${rec.lang} raw=${rec.rawWords}w fixed=${rec.fixedWords ?? '–'}w delta=${rec.delta ?? '–'} gate=${rec.gate} retry=${rec.retry || '–'} rewrite=${rec.rewrite || '–'} stt=${rec.stt ?? '–'} fix=${rec.fix ?? '–'} total=${rec.total ?? '–'} usd=${rec.usd ?? '–'}${rec.conf ? ` conf=${rec.conf.minLogprob?.toFixed(2)}/${rec.conf.maxNoSpeech?.toFixed(2)}` : ''}`);
+    console.log(`${this.tag} 🧪 arm=${rec.arm}${rec.reason ? `(${rec.reason})` : ''} sec=${rec.sec} ${rec.video ? 'video' : 'voice'}${rec.own ? ' own' : ''} lang=${rec.lang} raw=${rec.rawWords}w fixed=${rec.fixedWords ?? '–'}w delta=${rec.delta ?? '–'} gate=${rec.gate} retry=${rec.retry || '–'} rewrite=${rec.rewrite || '–'} stt=${rec.stt ?? '–'} fix=${rec.fix ?? '–'} total=${rec.total ?? '–'} usd=${rec.usd ?? '–'}${rec.tok ? ` tok=${rec.tok.in}+${rec.tok.cached}c/${rec.tok.out}(${rec.tok.reasoning}r)×${rec.tok.calls}` : ''}${rec.conf ? ` conf=${rec.conf.minLogprob?.toFixed(2)}/${rec.conf.maxNoSpeech?.toFixed(2)}` : ''}`);
     if (posted) {
       const sender = n.fromMe ? 'me' : (n.senderIds?.[0] || n.chatId);
       this.abRecs.set(n.id, { arm: rec.arm, at: rec.at, chatId: n.chatId, sender });

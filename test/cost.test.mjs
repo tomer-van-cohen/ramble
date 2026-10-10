@@ -33,3 +33,12 @@ test('cached input is billed at the cached price; the models we run are priced, 
     assert.equal(b.unpriced, false);
   });
 });
+
+test('the bill counts the chat tokens too, reasoning tokens apart, so a hidden cost can be seen', async () => {
+  const b = await meter(30, async () => {
+    chargeChat('chat-b', { prompt_tokens: 1500, prompt_tokens_details: { cached_tokens: 1200 }, completion_tokens: 400, completion_tokens_details: { reasoning_tokens: 250 } });
+    chargeChat('chat-b', { prompt_tokens: 100, completion_tokens: 50 });
+    return bill();
+  });
+  assert.deepEqual(b.tokens, { in: 400, cached: 1200, out: 450, reasoning: 250, calls: 2 });
+});

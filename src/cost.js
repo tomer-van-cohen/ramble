@@ -25,7 +25,7 @@ const price = (model) => PRICES[model] || PRICES[String(model).split('/').pop()]
 const store = new AsyncLocalStorage();
 
 /** Run fn with a bill for a recording of `seconds`; resolves to fn's result. Read the bill with bill(). */
-export const meter = (seconds, fn) => store.run({ seconds, usd: 0, unpriced: false }, fn);
+export const meter = (seconds, fn) => store.run({ seconds, usd: 0, unpriced: false, tokens: { in: 0, cached: 0, out: 0, reasoning: 0, calls: 0 } }, fn);
 export const bill = () => store.getStore() || null;
 
 /** One transcription of the current recording, by `model`. */
@@ -41,7 +41,10 @@ export function chargeChat(model, usage) {
   const p = price(model); if (!p?.in) b.unpriced = true;
   const prompt = Number(usage.prompt_tokens) || 0;
   const cached = p?.cached != null ? Math.min(prompt, Number(usage.prompt_tokens_details?.cached_tokens) || 0) : 0;
-  b.usd += ((prompt - cached) * (p?.in ?? FALLBACK.in) + cached * (p?.cached ?? 0) + (Number(usage.completion_tokens) || 0) * (p?.out ?? FALLBACK.out)) / 1e6;
+  const out = Number(usage.completion_tokens) || 0;
+  b.usd += ((prompt - cached) * (p?.in ?? FALLBACK.in) + cached * (p?.cached ?? 0) + out * (p?.out ?? FALLBACK.out)) / 1e6;
+  // Counts, for the record: reasoning tokens are part of `out` and billed as output, invisible otherwise.
+  if (b.tokens) { b.tokens.in += prompt - cached; b.tokens.cached += cached; b.tokens.out += out; b.tokens.reasoning += Number(usage.completion_tokens_details?.reasoning_tokens) || 0; b.tokens.calls++; }
 }
 
 /** $ per minute of audio for a plan's model, speech only: for estimating minutes counted before the meter existed. */

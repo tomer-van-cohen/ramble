@@ -134,6 +134,9 @@ export function summarize(records) {
       sttP50: median(g.map((r) => r.stt).filter((x) => x != null)),
       sttP90: p90(g.map((r) => r.stt).filter((x) => x != null)),
       totalP50: median(g.map((r) => r.total).filter((x) => x != null)),
+      tokOutP50: median(g.map((r) => r.tok?.out).filter((x) => x != null)),
+      tokReasoningP50: median(g.map((r) => r.tok?.reasoning).filter((x) => x != null)),
+      tokReasoningShare: (() => { const o = g.reduce((s, r) => s + (r.tok?.out || 0), 0); return o ? Math.round((g.reduce((s, r) => s + (r.tok?.reasoning || 0), 0) / o) * 1000) / 10 : null; })(),
       usdPerMin: g.reduce((s, r) => s + (r.sec || 0), 0) ? Math.round((g.reduce((s, r) => s + (r.usd || 0), 0) / (g.reduce((s, r) => s + (r.sec || 0), 0) / 60)) * 1e5) / 1e5 : null,
       ...(segment === 'all' ? {
         reactions: per1000(count('react'), delivered.length), revokes: per1000(count('revoke'), delivered.length),
