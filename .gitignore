@@ -1,0 +1,13 @@
+node_modules/
+data/
+runtime/
+.env
+.DS_Store
+.wwebjs_cache/
+.private-terms
+
+# The private brain (tomer-van-cohen/ramble-brain), its own checkout; never part of this repo.
+/brain/
+
+# Operator notes and agent skills live only in the operator's checkout.
+.claude/

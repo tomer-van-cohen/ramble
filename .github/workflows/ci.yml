@@ -1,0 +1,34 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: for f in src/*.js; do node --check "$f"; done
+      - run: npm test
+      - name: Dependency audit (fails on high/critical)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Secret scan (full history)
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: No secrets or private details in the tree
+        run: |
+          ! git grep -nE 'sk-(proj-)?[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}' -- . ':!package-lock.json'
+      - name: Nothing from the private brain in this repository
+        run: |
+          ! git ls-files | grep -E '^brain/'
+          ! git grep -n 'RAMBLE-PRIVATE' -- . ':!.githooks/pre-commit' ':!.github/workflows/ci.yml' ':!CLAUDE.md' ':!CONTRIBUTING.md'

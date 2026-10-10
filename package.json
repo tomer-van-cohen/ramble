@@ -1,0 +1,25 @@
+{
+  "name": "ramble",
+  "repository": "github:tomer-van-cohen/ramble",
+  "license": "MIT",
+  "version": "1.0.0",
+  "description": "Ramble: your WhatsApp voice notes, as text, right under each recording. Links to your WhatsApp as a device; hosted or self-hosted.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/app.js",
+    "postinstall": "node scripts/patch-deps.mjs",
+    "test": "BRAIN=plain node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
+    "express": "^4.21.2",
+    "ffmpeg-static": "^5.3.0",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "homepage": "https://ramble.baby"
+}

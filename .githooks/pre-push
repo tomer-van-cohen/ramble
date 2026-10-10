@@ -1,0 +1,14 @@
+#!/bin/sh
+# This repository began again from one commit, with the private brain left behind in the
+# archive. A branch that descends from the OLD history (root 8459d7f) carries all of it,
+# brain included; pushing such a branch here would publish it in one go. Refuse it.
+OLD_ROOT=8459d7f1
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in 0000000000000000000000000000000000000000) continue;; esac
+  if git cat-file -e "$OLD_ROOT^{commit}" 2>/dev/null && git merge-base --is-ancestor "$OLD_ROOT" "$local_sha" 2>/dev/null; then
+    echo "✋ $local_ref descends from the archived history ($OLD_ROOT): it would push the whole old tree, private brain included." >&2
+    echo "   Cherry-pick the commits you need onto the new root instead (git cherry-pick <sha>...), then push that." >&2
+    exit 1
+  fi
+done
+exit 0

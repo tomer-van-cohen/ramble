@@ -1,0 +1,17 @@
+# `railway up --no-gitignore` uploads the whole working tree (so the private brain at ./brain,
+# which git ignores here, goes too). This list is what must never leave the machine: everything
+# .gitignore keeps out that is a secret or data, plus git itself. Keep it in step with .gitignore.
+.git
+brain/.git
+.env
+.env.*
+.private-terms
+brain/.private-terms
+node_modules
+brain/node_modules
+data
+runtime
+.wwebjs_cache
+.claude
+.DS_Store
+*.log

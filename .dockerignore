@@ -1,0 +1,15 @@
+# What never goes into the image: secrets, data, dependencies (installed in the image), git.
+.git
+brain/.git
+.env
+.env.*
+.private-terms
+brain/.private-terms
+node_modules
+brain/node_modules
+data
+runtime
+.wwebjs_cache
+.claude
+.DS_Store
+*.log
