@@ -16,6 +16,8 @@
  *   free          FREE_TRANSCRIBE_API_KEY / FREE_TRANSCRIBE_BASE_URL (default Groq; SHADOW_* still read)
  *   groq          GROQ_API_KEY (or the free host when it is Groq)   https://api.groq.com/openai/v1
  *   deepinfra     DEEPINFRA_API_KEY / DEEPINFRA_BASE_URL
+ *   cloudflare    CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID   Workers AI (its own request shape:
+ *                 JSON with the audio in base64, POST .../ai/run/<model>; off without both)
  *   chat          SUMMARY_API_KEY / SUMMARY_BASE_URL                (default OpenAI; key falls back to
  *                 the transcription key of the same host)
  *   chatFallback  LLM_FALLBACK_API_KEY / LLM_FALLBACK_BASE_URL      (default: Groq when chat is not Groq
@@ -30,6 +32,7 @@ import { retryNet, netWhy } from './net.js';
 const GROQ_URL = 'https://api.groq.com/openai/v1';
 const OPENAI_URL = 'https://api.openai.com/v1';
 const DEEPINFRA_URL = 'https://api.deepinfra.com/v1/openai';
+const CLOUDFLARE_URL = (account) => `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run`;
 const hostOf = (u) => { try { return new URL(u).host; } catch { return ''; } };
 const env = (k) => process.env[k] || '';
 
@@ -38,6 +41,8 @@ const FREE = { name: 'free', apiKey: env('FREE_TRANSCRIBE_API_KEY') || env('SHAD
 // Whisper models are served by Groq; when the free host is Groq that is the Groq host.
 const GROQ = /groq\.com/.test(FREE.baseUrl) ? { ...FREE, name: 'groq' } : { name: 'groq', apiKey: env('GROQ_API_KEY') || env('SHADOW_TRANSCRIBE_API_KEY'), baseUrl: GROQ_URL };
 const DEEPINFRA = { name: 'deepinfra', apiKey: env('DEEPINFRA_API_KEY'), baseUrl: env('DEEPINFRA_BASE_URL') || DEEPINFRA_URL };
+// Workers AI is not OpenAI-shaped (see cloudflareTranscription); without an account id the host is off.
+const CLOUDFLARE = { name: 'cloudflare', kind: 'cloudflare', apiKey: env('CLOUDFLARE_ACCOUNT_ID') ? env('CLOUDFLARE_API_TOKEN') : '', baseUrl: env('CLOUDFLARE_BASE_URL') || CLOUDFLARE_URL(env('CLOUDFLARE_ACCOUNT_ID') || 'none') };
 
 // SUMMARY_API_KEY overrides only for the MAIN chat host; the fallback must never
 // inherit it (an OpenAI key sent to Groq is just a 401).
@@ -54,7 +59,7 @@ const FB_URL = env('LLM_FALLBACK_BASE_URL') || (hostOf(CHAT_URL) !== hostOf(GROQ
 const CHAT_FALLBACK = FB_URL ? { name: 'chatFallback', apiKey: env('LLM_FALLBACK_API_KEY') || chatKeyFor(FB_URL, { allowOverride: false }), baseUrl: FB_URL } : null;
 
 /** The closed list. Each entry: { name, apiKey, baseUrl }; a host without a key is listed but off. */
-export const HOSTS = Object.freeze({ pro: PRO, free: FREE, groq: GROQ, deepinfra: DEEPINFRA, chat: CHAT, chatFallback: CHAT_FALLBACK });
+export const HOSTS = Object.freeze({ pro: PRO, free: FREE, groq: GROQ, deepinfra: DEEPINFRA, cloudflare: CLOUDFLARE, chat: CHAT, chatFallback: CHAT_FALLBACK });
 export const hostEnabled = (host) => Boolean(resolve(host)?.apiKey);
 export const hostLabel = (host) => hostOf(resolve(host)?.baseUrl || '');
 export const isGroq = (host) => /groq\.com/.test(resolve(host)?.baseUrl || '');
@@ -92,6 +97,7 @@ export async function transcribeAudio(host, audio, { model, language = '', promp
   const h = resolve(host);
   if (!h.apiKey) throw new Error(`no key for the ${h.name} host`);
   if (!model) throw new Error('transcribeAudio: model is required');
+  if (h.kind === 'cloudflare') return cloudflareTranscription(h, audio, { model, language, prompt, signal, details, timeoutMs });
   const name = String(audio?.name || 'audio.ogg');
   const ext = name.split('.').pop().toLowerCase();
   const form = new FormData();
@@ -121,6 +127,40 @@ export async function transcribeAudio(host, audio, { model, language = '', promp
     if (!details) return (await res.text()).trim();
     const j = await res.json();
     return { text: String(j.text || '').trim(), language: String(j.language || ''), segments: Array.isArray(j.segments) ? j.segments : [] };
+  } finally {
+    done();
+  }
+}
+
+/**
+ * The same call at Workers AI: POST <baseUrl>/<model> with a JSON body, the audio in base64.
+ * The answer is wrapped ({ result: { text, transcription_info, segments } }); errors are
+ * in `errors`, not `error`, and quota or rate limits come back as HTTP 429.
+ */
+async function cloudflareTranscription(h, audio, { model, language, prompt, signal, details, timeoutMs }) {
+  const body = { audio: Buffer.from(audio.buf).toString('base64') };
+  if (language) body.language = language;
+  if (prompt) body.initial_prompt = prompt;
+  const { signal: sig, done } = combineSignals(signal, timeoutMs);
+  try {
+    const res = await retryNet(() => fetch(`${h.baseUrl}/${model}`, {
+      method: 'POST', signal: sig,
+      headers: { Authorization: `Bearer ${h.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }), { label: model, signal: sig });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.success === false) {
+      const first = Array.isArray(j.errors) ? j.errors[0] : null;
+      const code = first?.code != null ? String(first.code).slice(0, 40) : '';
+      const err = new Error(`${model} HTTP ${res.status}${code ? ` (${code})` : ''}`);
+      err.status = res.status; err.retryAfter = Number(res.headers.get('retry-after')) || 0;
+      throw err;
+    }
+    chargeSpeech(model);
+    const r = j.result || {};
+    const text = String(r.text || '').trim();
+    if (!details) return text;
+    return { text, language: String(r.transcription_info?.language || ''), segments: Array.isArray(r.segments) ? r.segments : [] };
   } finally {
     done();
   }
