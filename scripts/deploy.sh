@@ -51,14 +51,16 @@ git fetch -q origin
 if ! git merge-base --is-ancestor HEAD origin/main; then
   echo "❌ HEAD $(git rev-parse --short HEAD) is not on origin/main of the public repository — push it first"; exit 1
 fi
-brain_sha=$(git -C brain rev-parse HEAD 2>/dev/null || echo unknown)
-printf '{ "shell": "%s", "brain": "%s", "repo": "%s", "builtAt": "%s" }\n' "$(git rev-parse HEAD)" "$brain_sha" "$PUBLIC_REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build-info.json
-echo "🏷️  build-info: shell $(git rev-parse --short HEAD) · brain ${brain_sha:0:7}"
 # Both suites, before anything is uploaded (SKIP_TESTS=1 skips them).
 if [ "${SKIP_TESTS:-0}" != 1 ]; then
   echo "🧪 shell tests…"; npm test --silent >/dev/null 2>&1 || { echo "❌ the shell's tests fail — not deploying"; exit 1; }
   echo "🧪 brain tests…"; (cd brain && npm test --silent >/dev/null 2>&1) || { echo "❌ the brain's tests fail — not deploying"; exit 1; }
 fi
+
+# The image's own label, written once the suites passed.
+brain_sha=$(git -C brain rev-parse HEAD 2>/dev/null || echo unknown)
+printf '{ "shell": "%s", "brain": "%s", "repo": "%s", "builtAt": "%s" }\n' "$(git rev-parse HEAD)" "$brain_sha" "$PUBLIC_REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build-info.json
+echo "🏷️  build-info: shell $(git rev-parse --short HEAD) · brain ${brain_sha:0:7}"
 
 creds=$(railway variables --json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const v=JSON.parse(s);const p=v.ADMIN_PASSWORD||v.DASHBOARD_PASSWORD||'';if(p)process.stdout.write((v.ADMIN_USER||'admin')+':'+p)}catch{}})")
 admin() { # method path → body; credentials go through a curl config on stdin, not the command line

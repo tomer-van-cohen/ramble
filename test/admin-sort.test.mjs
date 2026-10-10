@@ -1,7 +1,7 @@
 // node --test test/admin-sort.test.mjs — the admin list sorted by minutes: today, 7 days, all time.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -97,6 +97,8 @@ test('/version names the public commit this image was built from, or says it doe
   const r = await (await fetch(`${base}/version`)).json();
   assert.deepEqual(Object.keys(r).sort(), ['brain', 'builtAt', 'repo', 'shell']);
   assert.match(r.repo, /^https:\/\/github\.com\//);
-  // No build-info.json in a test tree: nothing is guessed.
-  assert.equal(r.shell, null); assert.equal(r.brain, null);
+  // Whatever build-info.json says, or nothing at all (a test tree has none; a deploy writes one first).
+  let expected = { shell: null, brain: null };
+  try { const j = JSON.parse(readFileSync('build-info.json', 'utf8')); expected = { shell: j.shell, brain: j.brain }; } catch { /* none here */ }
+  assert.equal(r.shell, expected.shell); assert.equal(r.brain, expected.brain);
 });
